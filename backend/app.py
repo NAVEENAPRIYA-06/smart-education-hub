@@ -5,13 +5,57 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import google.generativeai as genai
 from dotenv import load_dotenv
+from flask_sqlalchemy import SQLAlchemy
 
+# 1. Initialize App First
 load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
+# 2. Database Configuration (Fixed order and variable names)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smart_hub.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# 3. Database Models
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    role = db.Column(db.String(20), nullable=False) # 'student', 'instructor', or 'admin'
+
+class Roadmap(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    topic = db.Column(db.String(100))
+    content = db.Column(db.Text) # The 7-day plan text
+
+# 4. AI Configuration
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-2.5-flash')
+
+# 5. ROUTES
+
+@app.route('/')
+def home():
+    return jsonify({"message": "Smart Education Hub Backend is Running!"})
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    
+    user = User.query.filter_by(username=username).first()
+    
+    if user and user.password == password: # In a real app, use password hashing!
+        return jsonify({
+            "message": "Login successful",
+            "username": user.username,
+            "role": user.role
+        }), 200
+    else:
+        return jsonify({"message": "Invalid username or password"}), 401
 
 @app.route('/generate-test', methods=['POST'])
 def generate_test():
@@ -29,12 +73,11 @@ def analyze_results():
     try:
         data = request.json
         questions = data.get('questions', [])
-        answers = data.get('answers', {}) # e.g. {"0": "choice", "1": "choice"}
+        answers = data.get('answers', {}) 
         
         score = 0
         wrong_topics = []
 
-        # Iterate by index to match the frontend selection logic
         for index, q in enumerate(questions):
             user_choice = answers.get(str(index))
             if user_choice == q['answer']:
