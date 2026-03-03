@@ -1,11 +1,18 @@
 import { useState } from 'react';
+import Login from './Login'; // Import your new Login component
 import axios from 'axios';
 
 function App() {
+  const [user, setUser] = useState(null); // Tracks logged-in user: {username, role}
   const [questions, setQuestions] = useState([]);
-  const [userAnswers, setUserAnswers] = useState({}); // Stores answers as {0: "choice", 1: "choice"}
+  const [userAnswers, setUserAnswers] = useState({});
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+
+  // Function passed to Login.jsx to handle a successful sign-in
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+  };
 
   const startTest = async () => {
     setLoading(true);
@@ -20,85 +27,49 @@ function App() {
     setLoading(false);
   };
 
-  const handleSelect = (index, option) => {
-    // Correctly merging new answer with previous state
-    setUserAnswers(prev => ({
-      ...prev,
-      [index]: option
-    }));
-  };
+  // 1. If no user is logged in, show the Login Screen
+  if (!user) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
-  const submitTest = async (e) => {
-    if (e) e.preventDefault();
-    
-    if (Object.keys(userAnswers).length < questions.length) {
-      alert(`Please answer all ${questions.length} questions!`);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await axios.post('http://127.0.0.1:5000/analyze-results', {
-        questions: questions,
-        answers: userAnswers
-      });
-      setResult(res.data);
-    } catch (err) {
-      alert("Error analyzing results.");
-    }
-    setLoading(false);
-  };
-
+  // 2. If logged in, show the Smart Education Hub based on Role
   return (
     <div className="container mt-5 pb-5">
-      <h2 className="text-center mb-4">🎓 Smart Education Hub</h2>
-      
-      {!questions.length ? (
-        <div className="text-center">
-        
-<button className="btn btn-primary btn-lg" onClick={startTest} disabled={loading}>
-  {loading ? "AI is crafting questions..." : "Start AI Diagnostic Test"}
-</button>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2>🎓 Smart Education Hub</h2>
+        <div className="text-end">
+           <span className="badge bg-secondary me-2">{user.role.toUpperCase()}</span>
+           <button className="btn btn-sm btn-outline-danger" onClick={() => setUser(null)}>Logout</button>
         </div>
-      ) : !result ? (
-        <div className="row justify-content-center">
-          <div className="col-md-8">
-            <div className="alert alert-info text-center">
-              Progress: {Object.keys(userAnswers).length} / {questions.length}
+      </div>
+
+      {user.role === 'student' ? (
+        // --- STUDENT VIEW ---
+        <div className="student-dashboard">
+          {!questions.length ? (
+            <div className="text-center mt-5">
+              <h3>Welcome, {user.username}!</h3>
+              <p>Ready to find your learning gaps?</p>
+              <button className="btn btn-primary btn-lg" onClick={startTest} disabled={loading}>
+                {loading ? "AI is generating..." : "Start AI Diagnostic Test"}
+              </button>
             </div>
-            {questions.map((q, index) => (
-              <div key={index} className="card shadow-sm mb-3">
-                <div className="card-body">
-                  <h5>{index + 1}. {q.question}</h5>
-                  {q.options.map(opt => (
-                    <button 
-                      key={opt}
-                      type="button" 
-                      className={`btn d-block w-100 mb-2 text-start ${userAnswers[index] === opt ? 'btn-primary text-white' : 'btn-outline-secondary'}`}
-                      onClick={() => handleSelect(index, opt)}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <button className="btn btn-success w-100 mt-4 py-3" onClick={submitTest} disabled={loading}>
-              {loading ? "Analyzing..." : "Submit All Answers"}
-            </button>
-          </div>
+          ) : !result ? (
+            <div className="row justify-content-center">
+               {/* ... Your existing Question Mapping Code here ... */}
+            </div>
+          ) : (
+            <div className="row justify-content-center">
+               {/* ... Your existing Result/Weak Area Code here ... */}
+            </div>
+          )}
         </div>
       ) : (
-        <div className="row justify-content-center">
-          <div className="col-md-6 card shadow p-4 text-center">
-            <h3>Your Learning Profile</h3>
-            <div className="display-3 my-3">{result.score} / {questions.length}</div>
-            <div className="alert alert-warning text-start">
-              <strong>💡 AI Weak Area Analysis:</strong>
-              <p className="mt-2 mb-0">{result.weak_areas}</p>
-            </div>
-            <button className="btn btn-primary mt-3" onClick={() => setQuestions([])}>Restart</button>
-          </div>
+        // --- INSTRUCTOR/ADMIN VIEW ---
+        <div className="card p-5 text-center shadow">
+          <h3>Welcome to the {user.role} Dashboard</h3>
+          <p>You have access to class analytics and student monitoring.</p>
+          <div className="alert alert-info">Dashboard features for {user.role} are coming in the next phase!</div>
         </div>
       )}
     </div>
